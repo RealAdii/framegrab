@@ -103,7 +103,10 @@ export default function DropZone({ onFileAccepted }: Props) {
 
       setYtStatus(`Downloading "${info.title}"...`);
 
-      const streamRes = await fetch(`/api/youtube/stream?url=${encodeURIComponent(url)}`);
+      const streamParams = new URLSearchParams({ url });
+      if (info.instance) streamParams.set("instance", info.instance);
+      if (info.itag) streamParams.set("itag", String(info.itag));
+      const streamRes = await fetch(`/api/youtube/stream?${streamParams}`);
       if (!streamRes.ok) throw new Error("Failed to download video");
 
       const contentLength = streamRes.headers.get("Content-Length");

@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "@tailwindcss/vite": "^4.2.1",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
