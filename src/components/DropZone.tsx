@@ -101,9 +101,14 @@ export default function DropZone({ onFileAccepted }: Props) {
         throw new Error("Live streams are not supported.");
       }
 
+      if (!info.videoUrl) {
+        throw new Error("Could not extract video download URL");
+      }
+
       setYtStatus(`Downloading "${info.title}"...`);
 
-      const streamRes = await fetch(`/api/youtube/stream?url=${encodeURIComponent(url)}`);
+      const proxyUrl = `/api/youtube/proxy?url=${encodeURIComponent(info.videoUrl)}`;
+      const streamRes = await fetch(proxyUrl);
       if (!streamRes.ok) throw new Error("Failed to download video");
 
       const contentLength = streamRes.headers.get("Content-Length");
