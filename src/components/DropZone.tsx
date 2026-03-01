@@ -88,11 +88,15 @@ export default function DropZone({ onFileAccepted }: Props) {
 
     try {
       const infoRes = await fetch(`/api/youtube/info?url=${encodeURIComponent(url)}`);
+      const info = await infoRes.json().catch(() => ({}));
       if (!infoRes.ok) {
-        const data = await infoRes.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to fetch video info");
+        if (info.code === "BOT_DETECTION") {
+          throw new Error(
+            "YouTube blocks downloads from cloud servers.\nDownload the video with yt-dlp or a browser extension, then upload it above."
+          );
+        }
+        throw new Error(info.error || "Failed to fetch video info");
       }
-      const info = await infoRes.json();
 
       if (info.duration > MAX_DURATION) {
         throw new Error(`Video is ${info.duration}s — max ${MAX_DURATION}s allowed.`);
@@ -265,7 +269,9 @@ export default function DropZone({ onFileAccepted }: Props) {
       )}
 
       {error && (
-        <p className="text-red-400 text-sm text-center">{error}</p>
+        <div className="text-red-400 text-sm text-center whitespace-pre-line">
+          {error}
+        </div>
       )}
     </div>
   );
