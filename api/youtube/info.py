@@ -3,21 +3,12 @@ import json
 from urllib.parse import parse_qs, urlparse
 
 
-# YouTube API clients to try — some bypass cloud IP bot detection
-PLAYER_CLIENTS = [
-    ["web_creator"],
-    ["android"],
-    ["mweb"],
-    ["ios"],
-    ["tv"],
-    ["mediaconnect"],
-]
-
-
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         query = parse_qs(urlparse(self.path).query)
         url = query.get("url", [None])[0]
+        po_token = query.get("po_token", [None])[0]
+        visitor_data = query.get("visitor_data", [None])[0]
 
         if not url:
             self._json_response(400, {"error": "Missing url parameter"})
@@ -29,20 +20,41 @@ class handler(BaseHTTPRequestHandler):
             info = None
             last_error = None
 
-            for clients in PLAYER_CLIENTS:
+            # Build list of attempts: with PoToken first (if provided), then fallbacks
+            attempts = []
+
+            if po_token:
+                # Primary: use client-provided PoToken
+                attempts.append({
+                    "quiet": True,
+                    "no_warnings": True,
+                    "format": "best[ext=mp4]/best",
+                    "no_check_certificates": True,
+                    "extractor_args": {
+                        "youtube": {
+                            "player_client": ["web"],
+                            "po_token": [f"web+{po_token}"],
+                            **({"visitor_data": [visitor_data]} if visitor_data else {}),
+                        }
+                    },
+                })
+
+            # Fallback: try various clients without PoToken
+            for client in ["web_creator", "android", "mweb", "ios", "tv", "mediaconnect"]:
+                attempts.append({
+                    "quiet": True,
+                    "no_warnings": True,
+                    "format": "best[ext=mp4]/best",
+                    "no_check_certificates": True,
+                    "extractor_args": {
+                        "youtube": {"player_client": [client]}
+                    },
+                })
+
+            for ydl_opts in attempts:
                 try:
-                    ydl_opts = {
-                        "quiet": True,
-                        "no_warnings": True,
-                        "format": "best[ext=mp4]/best",
-                        "no_check_certificates": True,
-                        "extractor_args": {
-                            "youtube": {"player_client": clients}
-                        },
-                    }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(url, download=False)
-
                     if info and (info.get("url") or info.get("requested_formats")):
                         break
                 except Exception as e:
@@ -51,7 +63,7 @@ class handler(BaseHTTPRequestHandler):
                     continue
 
             if not info:
-                raise last_error or Exception("All YouTube clients failed")
+                raise last_error or Exception("All YouTube extraction methods failed")
 
             video_url = info.get("url", "")
 

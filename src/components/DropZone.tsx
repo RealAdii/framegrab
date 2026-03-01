@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { generatePoToken } from "../lib/potoken";
 
 const ACCEPTED = ".mp4,.webm,.mov,.avi,.mkv";
 const MAX_DURATION = 60;
@@ -83,11 +84,28 @@ export default function DropZone({ onFileAccepted }: Props) {
 
     setError(null);
     setYtLoading(true);
-    setYtStatus("Fetching video info...");
+    setYtStatus("Preparing authentication...");
     setYtProgress(0);
 
     try {
-      const infoRes = await fetch(`/api/youtube/info?url=${encodeURIComponent(url)}`);
+      // Generate PoToken client-side (proves a real browser is making the request)
+      let poToken = "";
+      let visitorData = "";
+      try {
+        const token = await generatePoToken();
+        poToken = token.poToken;
+        visitorData = token.visitorData;
+      } catch {
+        // PoToken generation failed — still try without it
+      }
+
+      setYtStatus("Fetching video info...");
+
+      const params = new URLSearchParams({ url });
+      if (poToken) params.set("po_token", poToken);
+      if (visitorData) params.set("visitor_data", visitorData);
+
+      const infoRes = await fetch(`/api/youtube/info?${params}`);
       const info = await infoRes.json().catch(() => ({}));
       if (!infoRes.ok) {
         if (info.code === "BOT_DETECTION") {

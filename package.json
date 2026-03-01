@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "bgutils-js": "^3.2.0",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "react": "^19.2.0",
