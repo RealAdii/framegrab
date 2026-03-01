@@ -1,5 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import os
 from urllib.parse import parse_qs, urlparse
 
 
@@ -17,19 +18,30 @@ class handler(BaseHTTPRequestHandler):
         try:
             import yt_dlp
 
+            # Residential proxy from env (format: http://user:pass@host:port)
+            proxy_url = os.environ.get("RESIDENTIAL_PROXY_URL", "")
+
             info = None
             last_error = None
 
-            # Build list of attempts: with PoToken first (if provided), then fallbacks
+            # Build extraction attempts
             attempts = []
+
+            # Base options shared by all attempts
+            base_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "format": "best[ext=mp4]/best",
+                "no_check_certificates": True,
+            }
+
+            if proxy_url:
+                base_opts["proxy"] = proxy_url
 
             if po_token:
                 # Primary: use client-provided PoToken
-                attempts.append({
-                    "quiet": True,
-                    "no_warnings": True,
-                    "format": "best[ext=mp4]/best",
-                    "no_check_certificates": True,
+                opts = {
+                    **base_opts,
                     "extractor_args": {
                         "youtube": {
                             "player_client": ["web"],
@@ -37,15 +49,13 @@ class handler(BaseHTTPRequestHandler):
                             **({"visitor_data": [visitor_data]} if visitor_data else {}),
                         }
                     },
-                })
+                }
+                attempts.append(opts)
 
-            # Fallback: try various clients without PoToken
-            for client in ["web_creator", "android", "mweb", "ios", "tv", "mediaconnect"]:
+            # Try standard clients
+            for client in ["web", "web_creator", "android", "mweb", "ios"]:
                 attempts.append({
-                    "quiet": True,
-                    "no_warnings": True,
-                    "format": "best[ext=mp4]/best",
-                    "no_check_certificates": True,
+                    **base_opts,
                     "extractor_args": {
                         "youtube": {"player_client": [client]}
                     },
@@ -83,13 +93,14 @@ class handler(BaseHTTPRequestHandler):
                 "thumbnail": info.get("thumbnail", ""),
                 "videoId": info.get("id", ""),
                 "videoUrl": video_url,
+                "proxy": bool(proxy_url),
             })
 
         except Exception as e:
             error_msg = str(e)
-            if "Sign in" in error_msg or "bot" in error_msg:
+            if "Sign in" in error_msg or "bot" in error_msg.lower():
                 self._json_response(403, {
-                    "error": "YouTube is blocking this request from our server. Please download the video locally and upload it instead.",
+                    "error": "YouTube is blocking this request. Please download the video locally and upload it instead.",
                     "code": "BOT_DETECTION",
                 })
             else:
